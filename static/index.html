@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>VoiceSpark · 灵感闪念与语音胶囊</title>
+  
+  <!-- iOS PWA meta tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="VoiceSpark">
+  <meta name="theme-color" content="#090d16">
+  
+  <!-- Favicon & Icons -->
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
+
+  <!-- Tailwind CSS & Vue 3 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f5f3ff',
+              400: '#a78bfa',
+              500: '#8b5cf6',
+              600: '#7c3aed',
+              700: '#6d28d9',
+              900: '#4c1d95',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* iOS Safe Area & Glassmorphism */
+    :root {
+      --sat: env(safe-area-inset-top, 20px);
+      --sab: env(safe-area-inset-bottom, 20px);
+    }
+    body {
+      background-color: #090d16;
+      color: #f3f4f6;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior-y: none;
+    }
+    .safe-top { padding-top: max(var(--sat), 16px); }
+    .safe-bottom { padding-bottom: max(var(--sab), 24px); }
+    
+    .glass-card {
+      background: rgba(26, 32, 48, 0.65);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Pulse animation for recorder */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 0.4; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .animate-pulse-ring {
+      animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    
+    /* Hide scrollbar */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-[#090d16] text-gray-100 min-h-screen selection:bg-brand-500 selection:text-white">
+  <div id="app" class="flex flex-col min-h-screen max-w-lg mx-auto relative px-4">
+
+    <!-- Top Navigation Header -->
+    <header class="sticky top-0 z-30 pt-safe safe-top pb-3 flex items-center justify-between backdrop-blur-md bg-[#090d16]/80 border-b border-white/5">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-brand-500/25">
+          <span class="text-lg">🎙️</span>
+        </div>
+        <div>
+          <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
+            VoiceSpark
+            <span class="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-400 border border-brand-500/30">AI 胶囊</span>
+          </h1>
+          <p class="text-[11px] text-gray-400">随时随地一键录制灵感</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <!-- Notification Bell -->
+        <button @click="togglePushNotifications" class="w-9 h-9 rounded-full glass-card flex items-center justify-center transition active:scale-95 text-gray-300 hover:text-white" :class="{'text-brand-400': pushSubscribed}">
+          <span class="text-base">{{ pushSubscribed ? '🔔' : '🔕' }}</span>
+        </button>
+
+        <!-- Settings Modal Trigger -->
+        <button @click="showSettings = true" class="w-9 h-9 rounded-full glass-card flex items-center justify-center transition active:scale-95 text-gray-300 hover:text-white">
+          <span class="text-base">⚙️</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Search & Category Filters -->
+    <section class="mt-3.5 space-y-3">
+      <!-- Search input -->
+      <div class="relative">
+        <input 
+          v-model="searchQuery" 
+          type="text" 
+          placeholder="搜索灵感、要点、逐字稿或待办..." 
+          class="w-full bg-white/5 border border-white/10 rounded-xl px-9 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 transition"
+        >
+        <span class="absolute left-3 top-2.5 text-xs text-gray-400">🔍</span>
+        <button v-if="searchQuery" @click="searchQuery = ''" class="absolute right-3 top-2 text-xs text-gray-400 hover:text-white">✕</button>
+      </div>
+
+      <!-- Categories Pills -->
+      <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-1 text-xs">
+        <button 
+          v-for="cat in categories" 
+          :key="cat.id"
+          @click="activeCategory = cat.id"
+          class="px-3 py-1.5 rounded-full font-medium whitespace-nowrap transition-all border text-[11px]"
+          :class="activeCategory === cat.id ? 'bg-brand-600 text-white border-brand-500 shadow-md shadow-brand-600/30' : 'glass-card text-gray-400 border-white/5 hover:text-gray-200'"
+        >
+          <span>{{ cat.emoji }}</span>
+          <span class="ml-1">{{ cat.name }}</span>
+          <span class="ml-1 text-[10px] opacity-70">({{ getCategoryCount(cat.id) }})</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Main Feed: List of Spark Capsules -->
+    <main class="flex-1 mt-3 mb-28 space-y-4">
+      <!-- Loading indicator -->
+      <div v-if="loading && sparks.length === 0" class="py-16 text-center text-gray-500 text-xs flex flex-col items-center gap-2">
+        <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+        <span>正在加载灵感胶囊...</span>
+      </div>
+
+      <!-- Empty State -->
+      <div v-else-if="filteredSparks.length === 0" class="py-16 text-center glass-card rounded-2xl p-6 border border-white/5">
+        <div class="text-4xl mb-3">🎙️</div>
+        <h3 class="text-sm font-semibold text-white">暂无灵感记录</h3>
+        <p class="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
+          点击底部中央的红色按钮，说出你此刻的想法、待办或见闻，Gemini 将一键帮你整理精修！
+        </p>
+        <button @click="showTextModal = true" class="mt-4 px-4 py-1.5 rounded-xl bg-brand-600/80 hover:bg-brand-600 text-xs font-medium text-white transition">
+          ✏️ 随手写草稿
+        </button>
+      </div>
+
+      <!-- Spark Card -->
+      <article 
+        v-for="spark in filteredSparks" 
+        :key="spark.id"
+        :id="'spark-' + spark.id"
+        class="glass-card rounded-2xl p-4 transition-all duration-300 border border-white/10 hover:border-brand-500/30"
+      >
+        <!-- Card Header -->
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-center space-x-2 flex-1 min-w-0">
+            <!-- Category Badge -->
+            <span 
+              class="px-2 py-0.5 rounded-md text-[11px] font-semibold border flex items-center space-x-1 shrink-0"
+              :class="getCategoryStyle(spark.category)"
+            >
+              <span>{{ getCategoryEmoji(spark.category) }}</span>
+              <span>{{ getCategoryName(spark.category) }}</span>
+            </span>
+            <!-- Spark Title -->
+            <h2 class="text-sm font-bold text-white truncate">{{ spark.title }}</h2>
+          </div>
+
+          <!-- Actions: Favorite & Delete -->
+          <div class="flex items-center space-x-1 shrink-0">
+            <button @click="toggleFav(spark)" class="p-1 text-gray-400 hover:text-amber-400 transition" :title="spark.is_favorite ? '取消收藏' : '收藏'">
+              <span class="text-sm">{{ spark.is_favorite ? '⭐' : '☆' }}</span>
+            </button>
+            <button @click="deleteItem(spark)" class="p-1 text-gray-500 hover:text-rose-400 transition" title="删除">
+              <span class="text-xs">🗑️</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Processing Status -->
+        <div v-if="spark.status === 'processing' || spark.status === 'analyzing'" class="mt-3 p-3 rounded-xl bg-brand-950/40 border border-brand-500/30 flex items-center space-x-2 text-xs text-brand-300">
+          <div class="w-3.5 h-3.5 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"></div>
+          <span>Gemini 正在深度转写音轨、去除口头禅并提取要点...</span>
+        </div>
+
+        <div v-else-if="spark.status === 'failed'" class="mt-3 p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-xs text-rose-300">
+          <span>⚠️ 提炼异常: {{ spark.error_message || '处理超时或网络错误' }}</span>
+        </div>
+
+        <template v-else>
+          <!-- One-sentence summary -->
+          <div v-if="spark.one_liner" class="mt-2.5 p-2.5 rounded-xl bg-white/[0.03] border border-white/5 text-xs text-gray-200 leading-relaxed font-medium">
+            <span class="text-brand-400 mr-1 font-bold">💡 核心主旨:</span>
+            {{ spark.one_liner }}
+          </div>
+
+          <!-- Audio player if audio exists -->
+          <div v-if="spark.audio_filename" class="mt-2.5 flex items-center space-x-2 bg-black/40 p-2 rounded-xl border border-white/5">
+            <button 
+              @click="toggleAudio(spark)" 
+              class="w-8 h-8 rounded-full bg-brand-600 hover:bg-brand-500 flex items-center justify-center text-white text-xs shrink-0 transition"
+            >
+              {{ activePlayingId === spark.id && isPlaying ? '⏸' : '▶' }}
+            </button>
+            <div class="flex-1 min-w-0 flex items-center justify-between text-[11px] text-gray-400 pr-1">
+              <span class="truncate">音频原音记录</span>
+              <span>{{ spark.audio_duration ? spark.audio_duration + 's' : '' }}</span>
+            </div>
+          </div>
+
+          <!-- Detail Accordion / Tabs -->
+          <div class="mt-3 space-y-2 text-xs">
+            <!-- 1. Polished Text -->
+            <div v-if="spark.polished_text" class="space-y-1">
+              <div class="flex items-center justify-between text-[11px] text-gray-400 font-medium">
+                <span class="flex items-center gap-1">✨ 口语精修文稿</span>
+                <button @click="copyText(spark.polished_text)" class="text-brand-400 hover:underline text-[10px]">复制精修</button>
+              </div>
+              <div class="p-2.5 rounded-xl bg-white/5 text-gray-200 leading-relaxed whitespace-pre-wrap text-xs border border-white/5">
+                {{ spark.polished_text }}
+              </div>
+            </div>
+
+            <!-- 2. Key Points -->
+            <div v-if="spark.key_points && spark.key_points.length > 0" class="space-y-1 pt-1">
+              <span class="text-[11px] text-gray-400 font-medium flex items-center gap-1">📌 核心结构化要点</span>
+              <ul class="space-y-1.5">
+                <li v-for="(kp, idx) in spark.key_points" :key="idx" class="p-2 rounded-lg bg-white/[0.02] border border-white/5 text-[11px] text-gray-300">
+                  <span class="font-semibold text-brand-300">{{ kp.point }}: </span>
+                  <span>{{ kp.detail }}</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- 3. Action Items & Sync to OurTodo -->
+            <div v-if="spark.action_items && spark.action_items.length > 0" class="space-y-1.5 pt-1">
+              <div class="flex items-center justify-between text-[11px] text-gray-400 font-medium">
+                <span class="flex items-center gap-1">✅ 提取待办行动</span>
+                <span class="text-[10px] text-brand-400">直通 OurTodo</span>
+              </div>
+              <div v-for="(act, aIdx) in spark.action_items" :key="aIdx" class="flex items-center justify-between p-2 rounded-xl bg-emerald-950/20 border border-emerald-500/20 text-xs">
+                <div class="flex items-center space-x-2 flex-1 min-w-0 pr-2">
+                  <span class="text-emerald-400">◽</span>
+                  <span class="text-gray-200 text-xs truncate">{{ act.item }}</span>
+                </div>
+                <button 
+                  @click="syncActionToOurTodo(spark, aIdx)" 
+                  class="px-2.5 py-1 rounded-lg text-[10px] font-medium transition shrink-0"
+                  :class="act.synced_to_todo ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 cursor-default' : 'bg-brand-600 hover:bg-brand-500 text-white'"
+                  :disabled="act.synced_to_todo"
+                >
+                  {{ act.synced_to_todo ? '已同步到待办 ✓' : '送往 OurTodo' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 4. Raw Transcript Collapsible -->
+            <div v-if="spark.raw_transcript" class="pt-1">
+              <button 
+                @click="spark._showRaw = !spark._showRaw" 
+                class="text-[10px] text-gray-500 hover:text-gray-300 flex items-center space-x-1"
+              >
+                <span>{{ spark._showRaw ? '▲ 收起口述逐字稿' : '▼ 查看原始音频逐字听写 (Word-for-word)' }}</span>
+              </button>
+              <div v-if="spark._showRaw" class="mt-1.5 p-2.5 rounded-xl bg-black/50 text-[11px] text-gray-400 leading-relaxed font-mono whitespace-pre-wrap border border-white/5">
+                {{ spark.raw_transcript }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Card Footer Info & Markdown Copy -->
+          <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] text-gray-500">
+            <span>{{ formatTime(spark.created_at) }}</span>
+            <div class="flex items-center space-x-2">
+              <button @click="copyMarkdown(spark)" class="text-gray-400 hover:text-white flex items-center gap-1">
+                <span>📋 复制 Markdown</span>
+              </button>
+            </div>
+          </div>
+        </template>
+      </article>
+    </main>
+
+    <!-- Floating Audio Recording Bar (iOS Bottom Bar) -->
+    <div class="fixed bottom-0 left-0 right-0 z-40 max-w-lg mx-auto px-4 safe-bottom pointer-events-none pb-4">
+      <div class="pointer-events-auto glass-panel rounded-3xl p-3.5 shadow-2xl flex items-center justify-between border border-white/15">
+        
+        <!-- Text draft trigger button -->
+        <button 
+          @click="showTextModal = true" 
+          class="w-11 h-11 rounded-2xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-300 text-lg transition active:scale-95 border border-white/5"
+          title="文本速记"
+        >
+          ✏️
+        </button>
+
+        <!-- Big Central Recording Pill / Button -->
+        <div class="flex-1 mx-3 flex items-center justify-center">
+          <div v-if="!isRecording" class="w-full flex items-center justify-center">
+            <button 
+              @click="startRecording" 
+              class="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-semibold text-xs flex items-center justify-center space-x-2 shadow-lg shadow-brand-600/30 transition active:scale-98"
+            >
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
+              <span>点击开始录音 (随说随记)</span>
+            </button>
+          </div>
+
+          <!-- Active Recording State -->
+          <div v-else class="w-full flex items-center justify-between bg-rose-950/40 border border-rose-500/40 rounded-2xl px-3.5 py-1.5">
+            <div class="flex items-center space-x-2">
+              <span class="w-3 h-3 rounded-full bg-rose-500 animate-pulse-ring"></span>
+              <span class="text-xs font-mono font-bold text-rose-300">{{ formatTimer(recordingSeconds) }}</span>
+            </div>
+
+            <!-- Audio waveform canvas visualizer -->
+            <canvas ref="canvasRef" width="80" height="24" class="h-6 w-20"></canvas>
+
+            <!-- Stop / Submit Button -->
+            <button 
+              @click="stopRecording" 
+              class="px-3 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md transition active:scale-95"
+            >
+              完成 ✓
+            </button>
+          </div>
+        </div>
+
+        <!-- Refresh / Sync button -->
+        <button 
+          @click="fetchSparks" 
+          class="w-11 h-11 rounded-2xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-300 text-base transition active:scale-95 border border-white/5"
+          title="刷新列表"
+        >
+          🔄
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal: Text Draft / Manual Entry -->
+    <div v-if="showTextModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div class="glass-panel w-full max-w-md rounded-3xl p-5 border border-white/10 shadow-2xl">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+            <span>✏️</span> 随手写草稿 / 灵感文字
+          </h3>
+          <button @click="showTextModal = false" class="text-gray-400 hover:text-white text-sm">✕</button>
+        </div>
+        <p class="text-[11px] text-gray-400 mb-2.5">
+          在不方便开口讲话的场合，输入你凌乱的碎片想法，Gemini 同样会提炼为精修稿和待办：
+        </p>
+        <textarea 
+          v-model="textDraft" 
+          rows="5" 
+          placeholder="例如：今天和老王聊了下，决定把德扑app加上筹码重置功能，下周二前记得催一下小李把UI图切好发过来..."
+          class="w-full bg-black/40 border border-white/10 rounded-2xl p-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 resize-none"
+        ></textarea>
+        <div class="mt-3.5 flex space-x-2 justify-end">
+          <button @click="showTextModal = false" class="px-4 py-2 rounded-xl text-xs text-gray-400 hover:text-white">取消</button>
+          <button 
+            @click="submitTextDraft" 
+            :disabled="!textDraft.trim() || submittingText" 
+            class="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-xs font-semibold text-white shadow-lg shadow-brand-600/30 transition"
+          >
+            {{ submittingText ? '提交中...' : '开始提炼 🚀' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Settings & Integrations -->
+    <div v-if="showSettings" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div class="glass-panel w-full max-w-md rounded-3xl p-5 border border-white/10 shadow-2xl max-h-[85vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
+          <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+            <span>⚙️</span> VoiceSpark 设置与联动
+          </h3>
+          <button @click="showSettings = false" class="text-gray-400 hover:text-white text-sm">✕</button>
+        </div>
+
+        <div class="space-y-4 text-xs">
+          <!-- OurTodo Integration -->
+          <div class="space-y-1.5">
+            <label class="font-semibold text-gray-200 flex items-center gap-1">
+              <span>📋</span> OurTodo PWA 接口地址
+            </label>
+            <p class="text-[10px] text-gray-400">将识别到的待办任务一键直推到你的协同待办 App：</p>
+            <input 
+              v-model="settings.our_todo_api_url" 
+              type="text" 
+              placeholder="https://todo-gateway-xxxx.ew.gateway.dev"
+              class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
+            >
+          </div>
+
+          <!-- Gemini Model -->
+          <div class="space-y-1.5">
+            <label class="font-semibold text-gray-200 flex items-center gap-1">
+              <span>🧠</span> AI 模型引擎
+            </label>
+            <input 
+              v-model="settings.gemini_model" 
+              type="text" 
+              placeholder="gemini-2.5-flash"
+              class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500 font-mono"
+            >
+          </div>
+
+          <!-- Web Push Test -->
+          <div class="pt-2 border-t border-white/10 space-y-2">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="font-semibold text-gray-200">iPhone 锁屏通知推送</div>
+                <div class="text-[10px] text-gray-400">灵感提取完毕后点亮屏幕提醒</div>
+              </div>
+              <button 
+                @click="sendTestPush" 
+                class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs text-gray-200 transition"
+              >
+                测试通知
+              </button>
+            </div>
+          </div>
+
+          <!-- Device ID -->
+          <div class="pt-2 border-t border-white/10 text-[10px] text-gray-500 font-mono">
+            Device ID: {{ deviceId }}
+          </div>
+        </div>
+
+        <div class="mt-5 flex justify-end space-x-2">
+          <button @click="showSettings = false" class="px-4 py-2 rounded-xl text-xs text-gray-400 hover:text-white">取消</button>
+          <button @click="saveSettings" class="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-xs font-semibold text-white transition">保存设置</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Audio element for playing recordings -->
+  <audio id="globalAudioPlayer" class="hidden"></audio>
+
+  <!-- Application Logic -->
+  <script>
+    const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
+
+    createApp({
+      setup() {
+        const sparks = ref([]);
+        const loading = ref(false);
+        const searchQuery = ref('');
+        const activeCategory = ref('all');
+        const showTextModal = ref(false);
+        const showSettings = ref(false);
+        const textDraft = ref('');
+        const submittingText = ref(false);
+
+        // Recording states
+        const isRecording = ref(false);
+        const recordingSeconds = ref(0);
+        let recordingTimer = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let audioContext = null;
+        let analyser = null;
+        let animFrameId = null;
+        const canvasRef = ref(null);
+
+        // Audio playback states
+        const activePlayingId = ref(null);
+        const isPlaying = ref(false);
+
+        // Settings
+        const settings = ref({
+          our_todo_api_url: '',
+          gemini_model: 'gemini-2.5-flash'
+        });
+
+        // Push state
+        const pushSubscribed = ref(false);
+
+        // Device ID
+        let deviceId = localStorage.getItem('voicespark_device_id');
+        if (!deviceId) {
+          deviceId = 'dev_' + Math.random().toString(36).substring(2, 10);
+          localStorage.setItem('voicespark_device_id', deviceId);
+        }
+
+        const categories = [
+          { id: 'all', name: '全部', emoji: '🌟' },
+          { id: 'idea', name: '灵感闪念', emoji: '💡' },
+          { id: 'todo', name: '待办行动', emoji: '✅' },
+          { id: 'note', name: '见闻随笔', emoji: '📖' },
+          { id: 'journal', name: '情绪复盘', emoji: '🧠' },
+          { id: 'fav', name: '特别收藏', emoji: '⭐' }
+        ];
+
+        const getCategoryCount = (catId) => {
+          if (catId === 'all') return sparks.value.length;
+          if (catId === 'fav') return sparks.value.filter(s => s.is_favorite).length;
+          return sparks.value.filter(s => s.category === catId).length;
+        };
+
+        const getCategoryEmoji = (cat) => {
+          const map = { idea: '💡', todo: '✅', note: '📖', journal: '🧠' };
+          return map[cat] || '🎙️';
+        };
+
+        const getCategoryName = (cat) => {
+          const map = { idea: '灵感闪念', todo: '待办行动', note: '见闻笔记', journal: '情绪复盘' };
+          return map[cat] || '语音速记';
+        };
+
+        const getCategoryStyle = (cat) => {
+          const map = {
+            idea: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+            todo: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+            note: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+            journal: 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+          };
+          return map[cat] || 'bg-brand-500/15 text-brand-300 border-brand-500/30';
+        };
+
+        const filteredSparks = computed(() => {
+          let list = sparks.value;
+          if (activeCategory.value === 'fav') {
+            list = list.filter(s => s.is_favorite);
+          } else if (activeCategory.value !== 'all') {
+            list = list.filter(s => s.category === activeCategory.value);
+          }
+
+          if (searchQuery.value.trim()) {
+            const q = searchQuery.value.toLowerCase();
+            list = list.filter(s => 
+              (s.title && s.title.toLowerCase().includes(q)) ||
+              (s.polished_text && s.polished_text.toLowerCase().includes(q)) ||
+              (s.raw_transcript && s.raw_transcript.toLowerCase().includes(q)) ||
+              (s.one_liner && s.one_liner.toLowerCase().includes(q))
+            );
+          }
+          return list;
+        });
+
+        // Fetch Sparks
+        const fetchSparks = async () => {
+          loading.value = true;
+          try {
+            const resp = await fetch(`/api/sparks?device_id=${deviceId}&limit=60`);
+            const data = await resp.json();
+            sparks.value = data.sparks || [];
+          } catch (e) {
+            console.error('Failed to fetch sparks:', e);
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        // Format helpers
+        const formatTimer = (sec) => {
+          const m = Math.floor(sec / 60).toString().padStart(2, '0');
+          const s = (sec % 60).toString().padStart(2, '0');
+          return `${m}:${s}`;
+        };
+
+        const formatTime = (iso) => {
+          if (!iso) return '';
+          const d = new Date(iso);
+          return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+        };
+
+        // Audio Recording logic
+        const startRecording = async () => {
+          if (navigator.vibrate) navigator.vibrate([40]);
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // Web Audio Analyser for visual wave
+            try {
+              audioContext = new (window.AudioContext || window.webkitAudioContext)();
+              const source = audioContext.createMediaStreamSource(stream);
+              analyser = audioContext.createAnalyser();
+              analyser.fftSize = 64;
+              source.connect(analyser);
+              drawWaveform();
+            } catch (err) {
+              console.warn('Audio visualization not supported:', err);
+            }
+
+            audioChunks = [];
+            // Determine supported mime type
+            let mimeType = 'audio/webm';
+            if (MediaRecorder.isTypeSupported('audio/mp4')) {
+              mimeType = 'audio/mp4';
+            } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+              mimeType = 'audio/webm;codecs=opus';
+            }
+
+            mediaRecorder = new MediaRecorder(stream, { mimeType });
+            mediaRecorder.ondataavailable = (e) => {
+              if (e.data && e.data.size > 0) {
+                audioChunks.push(e.data);
+              }
+            };
+
+            mediaRecorder.onstop = async () => {
+              const audioBlob = new Blob(audioChunks, { type: mimeType });
+              stream.getTracks().forEach(t => t.stop());
+              if (audioContext) {
+                try { audioContext.close(); } catch(e){}
+              }
+              if (animFrameId) cancelAnimationFrame(animFrameId);
+              
+              await uploadAudioRecord(audioBlob, mimeType);
+            };
+
+            mediaRecorder.start(250);
+            isRecording.value = true;
+            recordingSeconds.value = 0;
+            recordingTimer = setInterval(() => {
+              recordingSeconds.value++;
+              if (recordingSeconds.value >= 180) { // Max 3 minutes
+                stopRecording();
+              }
+            }, 1000);
+
+          } catch (err) {
+            alert('无法访问麦克风，请在浏览器权限设置中允许麦克风权限。');
+            console.error('Microphone error:', err);
+          }
+        };
+
+        const stopRecording = () => {
+          if (navigator.vibrate) navigator.vibrate([40, 30]);
+          if (recordingTimer) clearInterval(recordingTimer);
+          if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+          }
+          isRecording.value = false;
+        };
+
+        const drawWaveform = () => {
+          if (!canvasRef.value || !analyser) return;
+          const canvas = canvasRef.value;
+          const ctx = canvas.getContext('2d');
+          const bufferLength = analyser.frequencyBinCount;
+          const dataArray = new Uint8Array(bufferLength);
+
+          const render = () => {
+            animFrameId = requestAnimationFrame(render);
+            analyser.getByteFrequencyData(dataArray);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const barWidth = 3;
+            let x = 0;
+            for (let i = 0; i < bufferLength && x < canvas.width; i += 2) {
+              const barHeight = Math.max(3, (dataArray[i] / 255) * canvas.height);
+              ctx.fillStyle = '#f43f5e';
+              ctx.fillRect(x, (canvas.height - barHeight) / 2, barWidth, barHeight);
+              x += barWidth + 2;
+            }
+          };
+          render();
+        };
+
+        const uploadAudioRecord = async (blob, mimeType) => {
+          const formData = new FormData();
+          const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+          formData.append('file', blob, `voice_${Date.now()}.${ext}`);
+          formData.append('device_id', deviceId);
+
+          try {
+            const resp = await fetch('/api/sparks/record', {
+              method: 'POST',
+              body: formData
+            });
+            const res = await resp.json();
+            if (res.spark) {
+              sparks.value.unshift(res.spark);
+            }
+            // Poll after 4s for result
+            setTimeout(fetchSparks, 4000);
+            setTimeout(fetchSparks, 9000);
+          } catch (e) {
+            alert('上传音频失败，请检查网络连接');
+          }
+        };
+
+        // Text draft submission
+        const submitTextDraft = async () => {
+          if (!textDraft.value.trim()) return;
+          submittingText.value = true;
+          try {
+            const resp = await fetch('/api/sparks/text', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: textDraft.value.trim(),
+                device_id: deviceId
+              })
+            });
+            const res = await resp.json();
+            if (res.spark) {
+              sparks.value.unshift(res.spark);
+            }
+            showTextModal.value = false;
+            textDraft.value = '';
+            setTimeout(fetchSparks, 3500);
+          } catch (e) {
+            alert('草稿提交失败: ' + e.message);
+          } finally {
+            submittingText.value = false;
+          }
+        };
+
+        // Audio playback
+        const toggleAudio = (spark) => {
+          const player = document.getElementById('globalAudioPlayer');
+          if (activePlayingId.value === spark.id && isPlaying.value) {
+            player.pause();
+            isPlaying.value = false;
+          } else {
+            player.src = `/api/sparks/${spark.id}/audio`;
+            player.play();
+            activePlayingId.value = spark.id;
+            isPlaying.value = true;
+            player.onended = () => {
+              isPlaying.value = false;
+            };
+          }
+        };
+
+        // Actions
+        const toggleFav = async (spark) => {
+          try {
+            const resp = await fetch(`/api/sparks/${spark.id}/favorite`, { method: 'POST' });
+            const data = await resp.json();
+            spark.is_favorite = data.is_favorite;
+          } catch (e) {}
+        };
+
+        const deleteItem = async (spark) => {
+          if (!confirm(`确定删除灵感《${spark.title}》吗？`)) return;
+          try {
+            await fetch(`/api/sparks/${spark.id}`, { method: 'DELETE' });
+            sparks.value = sparks.value.filter(s => s.id !== spark.id);
+          } catch (e) {
+            alert('删除失败');
+          }
+        };
+
+        const syncActionToOurTodo = async (spark, itemIdx) => {
+          try {
+            const resp = await fetch(`/api/sparks/${spark.id}/sync_todo`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ item_index: itemIdx, category_id: 1 })
+            });
+            const res = await resp.json();
+            if (resp.ok) {
+              spark.action_items[itemIdx].synced_to_todo = true;
+              alert('✨ 已成功同步至 OurTodo！');
+            } else {
+              alert('同步失败: ' + (res.detail || '请先在设置中配置 OurTodo 地址'));
+            }
+          } catch (e) {
+            alert('网络请求失败: ' + e.message);
+          }
+        };
+
+        const copyText = (txt) => {
+          navigator.clipboard.writeText(txt);
+          alert('已复制精修文本到剪贴板！');
+        };
+
+        const copyMarkdown = (spark) => {
+          let md = `# 🎙️ ${spark.title}\n\n`;
+          if (spark.one_liner) md += `> **💡 核心主旨**: ${spark.one_liner}\n\n`;
+          if (spark.polished_text) md += `## ✨ 精修文稿\n${spark.polished_text}\n\n`;
+          if (spark.key_points && spark.key_points.length) {
+            md += `## 📌 核心要点\n`;
+            spark.key_points.forEach(k => { md += `- **${k.point}**: ${k.detail}\n`; });
+            md += `\n`;
+          }
+          if (spark.action_items && spark.action_items.length) {
+            md += `## ✅ 待办行动\n`;
+            spark.action_items.forEach(a => { md += `- [ ] ${a.item}\n`; });
+            md += `\n`;
+          }
+          if (spark.raw_transcript) md += `## 📝 口述逐字稿\n\`\`\`text\n${spark.raw_transcript}\n\`\`\`\n`;
+
+          navigator.clipboard.writeText(md);
+          alert('已复制完整 Markdown 笔记到剪贴板！可直接粘贴到 Apple 备忘录或 Notion。');
+        };
+
+        // Settings load & save
+        const loadSettings = async () => {
+          try {
+            const resp = await fetch('/api/settings');
+            const data = await resp.json();
+            settings.value.our_todo_api_url = data.our_todo_api_url || '';
+            settings.value.gemini_model = data.gemini_model || 'gemini-2.5-flash';
+          } catch (e) {}
+        };
+
+        const saveSettings = async () => {
+          try {
+            await fetch('/api/settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(settings.value)
+            });
+            showSettings.value = false;
+            alert('设置已更新！');
+          } catch (e) {
+            alert('保存失败: ' + e.message);
+          }
+        };
+
+        // Web Push Registration
+        const togglePushNotifications = async () => {
+          if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+            alert('当前浏览器环境不支持 Web Push 通知。请添加到 iPhone 主屏幕后再试。');
+            return;
+          }
+
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') {
+            alert('请允许通知权限以接收锁屏推送提醒。');
+            return;
+          }
+
+          try {
+            const reg = await navigator.serviceWorker.ready;
+            const keyResp = await fetch('/api/push/public-key');
+            const { public_key } = await keyResp.json();
+
+            // Convert base64 url to Uint8Array
+            const padding = '='.repeat((4 - public_key.length % 4) % 4);
+            const base64 = (public_key + padding).replace(/\-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+              outputArray[i] = rawData.charCodeAt(i);
+            }
+
+            const subscription = await reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: outputArray
+            });
+
+            await fetch('/api/push/subscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                endpoint: subscription.endpoint,
+                keys: {
+                  p256dh: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh')))),
+                  auth: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth'))))
+                }
+              })
+            });
+
+            pushSubscribed.value = true;
+            alert('🎉 锁屏推送已开启！录音分析完成后将自动弹出提醒。');
+          } catch (err) {
+            console.error('Push subscribe error:', err);
+            alert('通知注册失败: ' + err.message);
+          }
+        };
+
+        const sendTestPush = async () => {
+          try {
+            await fetch('/api/push/test', {
+              method: 'POST',
+              headers: { 'X-Device-Id': deviceId }
+            });
+            alert('测试推送已发出，请锁屏查看！');
+          } catch (e) {
+            alert('测试推送失败: ' + e.message);
+          }
+        };
+
+        onMounted(() => {
+          fetchSparks();
+          loadSettings();
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(console.error);
+          }
+          if ('Notification' in window && Notification.permission === 'granted') {
+            pushSubscribed.value = true;
+          }
+        });
+
+        return {
+          sparks,
+          loading,
+          searchQuery,
+          activeCategory,
+          categories,
+          getCategoryCount,
+          getCategoryEmoji,
+          getCategoryName,
+          getCategoryStyle,
+          filteredSparks,
+          fetchSparks,
+          formatTimer,
+          formatTime,
+          // Recording
+          isRecording,
+          recordingSeconds,
+          startRecording,
+          stopRecording,
+          canvasRef,
+          // Text modal
+          showTextModal,
+          textDraft,
+          submittingText,
+          submitTextDraft,
+          // Audio play
+          activePlayingId,
+          isPlaying,
+          toggleAudio,
+          // Card actions
+          toggleFav,
+          deleteItem,
+          syncActionToOurTodo,
+          copyText,
+          copyMarkdown,
+          // Settings & Push
+          showSettings,
+          settings,
+          saveSettings,
+          deviceId,
+          pushSubscribed,
+          togglePushNotifications,
+          sendTestPush
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

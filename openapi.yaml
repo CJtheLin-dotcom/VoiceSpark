@@ -1,0 +1,51 @@
+swagger: '2.0'
+info:
+  title: voice-spark-api
+  description: Public API Gateway for VoiceSpark PWA
+  version: 1.0.0
+schemes:
+  - https
+produces:
+  - application/json
+  - text/html
+x-google-backend:
+  address: https://voice-spark-pwa-mqdsqta4hq-ew.a.run.app
+  path_translation: APPEND_PATH_TO_ADDRESS
+paths:
+  /:
+    get:
+      summary: Root endpoint
+      operationId: getRoot
+      responses:
+        default:
+          description: Default response
+  /{path=**}:
+    parameters:
+      - in: path
+        name: path
+        type: string
+        required: true
+    get:
+      summary: Catch-all GET
+      operationId: catchAllGet
+      responses:
+        default:
+          description: Default response
+    post:
+      summary: Catch-all POST
+      operationId: catchAllPost
+      responses:
+        default:
+          description: Default response
+    put:
+      summary: Catch-all PUT
+      operationId: catchAllPut
+      responses:
+        default:
+          description: Default response
+    delete:
+      summary: Catch-all DELETE
+      operationId: catchAllDelete
+      responses:
+        default:
+          description: Default response
