@@ -78,7 +78,7 @@ VoiceSpark/
 ./setup_gateway.sh
 ```
 部署完成后，终端会自动输出专属于你的永久 HTTPS 地址：
-`https://voice-spark-gateway-xxxx.ew.gateway.dev`
+`https://voice-spark-gateway-5lquvkm5.ew.gateway.dev`
 
 #### ⚠️ Cloud Run 核心配置（`setup_gateway.sh` 已内置）：
 1. **`--no-cpu-throttling`（CPU 始终分配）**：保证接收到录音返回 202 后，后台多模态提炼与转写能全速执行不被休眠。

@@ -22,7 +22,7 @@
 1. 搜索并添加动作：**「获取 URL 的内容」** (Get Contents of URL)。
 2. URL 填入你的 VoiceSpark 云端网关地址：
    ```text
-   https://voice-spark-gateway-xxxx.ew.gateway.dev/api/sparks/record
+   https://voice-spark-gateway-5lquvkm5.ew.gateway.dev/api/sparks/record
    ```
    *(如果本地测试可用你局域网的 IP 地址)*
 3. 点击展开选项：

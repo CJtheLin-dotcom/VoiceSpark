@@ -38,7 +38,7 @@ CLOUD_RUN_URL=$(gcloud run services describe "${SERVICE_NAME}" \
 echo "✅ Cloud Run 后端地址: ${CLOUD_RUN_URL}"
 
 # 同步更新 openapi.yaml 里的后端真实地址
-sed -i "s|address:.*|address: ${CLOUD_RUN_URL}|" "${SPEC_FILE}"
+python3 -c "import sys, re; p, u = sys.argv[1], sys.argv[2]; c = open(p).read(); open(p, 'w').write(re.sub(r'address:.*', f'address: {u}', c))" "${SPEC_FILE}" "${CLOUD_RUN_URL}"
 
 # 3. 启用所需 API
 echo "🔧 [2/6] 启用 API Gateway 相关服务..."
@@ -54,7 +54,8 @@ if ! gcloud iam service-accounts describe "${SA_EMAIL}" --project="${PROJECT_ID}
     --display-name="VoiceSpark Gateway SA" \
     --description="Service account for API Gateway to invoke backend Cloud Run" \
     --project="${PROJECT_ID}"
-  echo "✅ 服务账号创建成功"
+  echo "✅ 服务账号创建成功，等待 IAM 权限同步..."
+  sleep 10
 else
   echo "ℹ️ 服务账号已存在，跳过创建"
 fi
