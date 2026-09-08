@@ -263,17 +263,32 @@
               <div v-for="(act, aIdx) in spark.action_items" :key="aIdx" class="flex items-center justify-between p-2 rounded-xl bg-emerald-950/20 border border-emerald-500/20 text-xs">
                 <div class="flex items-center space-x-2 flex-1 min-w-0 pr-2">
                   <span class="text-emerald-400">◽</span>
-                  <span class="text-gray-200 text-xs truncate">{{ act.item }}</span>
+                  <span class="text-gray-200 text-xs truncate">{{ typeof act === 'object' ? (act.item || act.title) : act }}</span>
                 </div>
                 <button 
                   @click="syncActionToOurTodo(spark, aIdx)" 
-                  class="px-2.5 py-1 rounded-lg text-[10px] font-medium transition shrink-0"
-                  :class="act.synced_to_todo ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 cursor-default' : 'bg-brand-600 hover:bg-brand-500 text-white'"
-                  :disabled="act.synced_to_todo"
+                  class="px-2.5 py-1 rounded-lg text-[10px] font-medium transition shrink-0 flex items-center space-x-1"
+                  :class="(act.synced_to_todo) ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 cursor-default' : 'bg-brand-600 hover:bg-brand-500 text-white'"
+                  :disabled="act.synced_to_todo || isSyncingTodo(spark.id, aIdx)"
                 >
-                  {{ act.synced_to_todo ? '已同步到待办 ✓' : '送往 OurTodo' }}
+                  <span>{{ act.synced_to_todo ? '已同步到待办 ✓' : (isSyncingTodo(spark.id, aIdx) ? '正在同步...' : '送往 OurTodo') }}</span>
                 </button>
               </div>
+            </div>
+            <!-- If category is todo and no specific action items, offer 1-click sync for entire spark -->
+            <div v-else-if="spark.category === 'todo'" class="pt-1 flex items-center justify-between p-2 rounded-xl bg-emerald-950/20 border border-emerald-500/20 text-xs">
+              <div class="flex items-center space-x-2 flex-1 min-w-0 pr-2">
+                <span class="text-emerald-400">✅</span>
+                <span class="text-gray-200 text-xs truncate">{{ spark.title }}</span>
+              </div>
+              <button 
+                @click="syncActionToOurTodo(spark, -1)" 
+                class="px-2.5 py-1 rounded-lg text-[10px] font-medium transition shrink-0 flex items-center space-x-1"
+                :class="(spark._synced_to_todo) ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 cursor-default' : 'bg-brand-600 hover:bg-brand-500 text-white'"
+                :disabled="spark._synced_to_todo || isSyncingTodo(spark.id, -1)"
+              >
+                <span>{{ spark._synced_to_todo ? '已同步到待办 ✓' : (isSyncingTodo(spark.id, -1) ? '正在同步...' : '送往 OurTodo') }}</span>
+              </button>
             </div>
 
             <!-- 4. Raw Transcript Collapsible -->
@@ -410,7 +425,7 @@
             <input 
               v-model="settings.our_todo_api_url" 
               type="text" 
-              placeholder="https://todo-gateway-xxxx.ew.gateway.dev"
+              placeholder="https://todo-gateway-5lquvkm5.ew.gateway.dev"
               class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500"
             >
           </div>
@@ -797,22 +812,49 @@
           }
         };
 
+        const syncingTodoMap = ref({});
+        const isSyncingTodo = (sparkId, itemIdx) => {
+          return !!syncingTodoMap.value[`${sparkId}_${itemIdx}`];
+        };
+
         const syncActionToOurTodo = async (spark, itemIdx) => {
+          const key = `${spark.id}_${itemIdx}`;
+          if (syncingTodoMap.value[key]) return;
+          syncingTodoMap.value[key] = true;
           try {
             const resp = await fetch(`/api/sparks/${spark.id}/sync_todo`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ item_index: itemIdx, category_id: 1 })
+              body: JSON.stringify({ item_index: itemIdx })
             });
             const res = await resp.json();
             if (resp.ok) {
-              spark.action_items[itemIdx].synced_to_todo = true;
+              if (itemIdx >= 0 && spark.action_items && spark.action_items[itemIdx]) {
+                if (typeof spark.action_items[itemIdx] === 'string') {
+                  spark.action_items[itemIdx] = { item: spark.action_items[itemIdx], synced_to_todo: true };
+                } else {
+                  spark.action_items[itemIdx].synced_to_todo = true;
+                }
+              } else if (spark.action_items && spark.action_items.length > 0) {
+                spark.action_items.forEach((a, i) => {
+                  if (typeof a === 'string') {
+                    spark.action_items[i] = { item: a, synced_to_todo: true };
+                  } else {
+                    a.synced_to_todo = true;
+                  }
+                });
+                spark._synced_to_todo = true;
+              } else {
+                spark._synced_to_todo = true;
+              }
               alert('✨ 已成功同步至 OurTodo！');
             } else {
-              alert('同步失败: ' + (res.detail || '请先在设置中配置 OurTodo 地址'));
+              alert('同步失败: ' + (res.detail || '请检查 OurTodo 地址与网络'));
             }
           } catch (e) {
             alert('网络请求失败: ' + e.message);
+          } finally {
+            syncingTodoMap.value[key] = false;
           }
         };
 
@@ -994,6 +1036,7 @@
           toggleFav,
           deleteItem,
           syncActionToOurTodo,
+          isSyncingTodo,
           copyText,
           copyMarkdown,
           // Settings & Push

@@ -106,8 +106,8 @@ class TextSparkRequest(BaseModel):
     device_id: Optional[str] = "default"
 
 class SyncTodoRequest(BaseModel):
-    item_index: int
-    category_id: Optional[int] = 1
+    item_index: Optional[int] = 0
+    category_id: Optional[int] = None
     creator_name: Optional[str] = "VoiceSpark"
 
 class SettingsUpdateRequest(BaseModel):
@@ -281,24 +281,37 @@ def sync_to_ourtodo(spark_id: str, req: SyncTodoRequest):
         raise HTTPException(status_code=404, detail="Spark not found")
     
     action_items = spark.get("action_items", [])
-    if req.item_index < 0 or req.item_index >= len(action_items):
+    action_text = ""
+    idx = req.item_index if req.item_index is not None else 0
+
+    if 0 <= idx < len(action_items):
+        target_action = action_items[idx]
+        if isinstance(target_action, dict):
+            action_text = target_action.get("item") or target_action.get("title") or ""
+        else:
+            action_text = str(target_action)
+    elif idx == -1 or len(action_items) == 0:
+        # Sync whole spark
+        action_text = spark.get("title") or spark.get("one_liner") or "VoiceSpark 灵感"
+        idx = -1
+    else:
         raise HTTPException(status_code=400, detail="Invalid action item index")
     
-    target_action = action_items[req.item_index]
-    action_text = target_action.get("item", "")
+    if not action_text:
+        action_text = spark.get("title") or "VoiceSpark 灵感"
 
     todo_id = push_action_item_to_our_todo(
         action_item=action_text,
         spark_title=spark["title"],
         spark_one_liner=spark.get("one_liner", ""),
-        category_id=req.category_id or 1,
+        category_id=req.category_id,
         creator_name=req.creator_name or "VoiceSpark"
     )
 
     if not todo_id:
         raise HTTPException(status_code=502, detail="未能同步到 OurTodo，请检查 OurTodo 服务地址与网络连接")
 
-    mark_action_item_synced(spark_id, req.item_index, todo_id)
+    mark_action_item_synced(spark_id, idx, todo_id)
     return {"message": "已成功同步至 OurTodo", "todo_id": todo_id}
 
 # Push Notification Endpoints

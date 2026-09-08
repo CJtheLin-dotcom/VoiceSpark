@@ -243,9 +243,40 @@ def mark_action_item_synced(spark_id: str, item_index: int, todo_item_id: Option
         return False
     actions = spark.get("action_items", [])
     if 0 <= item_index < len(actions):
-        actions[item_index]["synced_to_todo"] = True
+        act = actions[item_index]
+        if isinstance(act, str):
+            act = {"item": act}
+        act["synced_to_todo"] = True
         if todo_item_id:
-            actions[item_index]["todo_item_id"] = todo_item_id
+            act["todo_item_id"] = todo_item_id
+        actions[item_index] = act
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE sparks SET action_items = ? WHERE id = ?",
+            (json.dumps(actions, ensure_ascii=False), spark_id)
+        )
+        conn.commit()
+        conn.close()
+        _notify_mutation()
+        return True
+    elif item_index == -1:
+        # Pushed whole spark to OurTodo
+        if actions:
+            for i in range(len(actions)):
+                act = actions[i]
+                if isinstance(act, str):
+                    act = {"item": act}
+                act["synced_to_todo"] = True
+                if todo_item_id:
+                    act["todo_item_id"] = todo_item_id
+                actions[i] = act
+        else:
+            actions = [{
+                "item": spark.get("title", "VoiceSpark 灵感"),
+                "synced_to_todo": True,
+                "todo_item_id": todo_item_id
+            }]
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute(

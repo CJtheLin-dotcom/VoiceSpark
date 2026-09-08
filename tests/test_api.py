@@ -53,8 +53,17 @@ def test_settings_and_push_keys():
     # Settings
     get_sett = client.get("/api/settings")
     assert get_sett.status_code == 200
+    original_url = get_sett.json().get("our_todo_api_url")
 
-    update_sett = client.post("/api/settings", json={
-        "our_todo_api_url": "https://todo-gateway-test.example.com"
-    })
-    assert update_sett.status_code == 200
+    try:
+        update_sett = client.post("/api/settings", json={
+            "our_todo_api_url": "https://todo-gateway-test.example.com"
+        })
+        assert update_sett.status_code == 200
+        verify_sett = client.get("/api/settings")
+        assert verify_sett.json().get("our_todo_api_url") == "https://todo-gateway-test.example.com"
+    finally:
+        # Restore original setting so other tests and app state are not polluted
+        if original_url:
+            client.post("/api/settings", json={"our_todo_api_url": original_url})
+

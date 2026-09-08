@@ -30,7 +30,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 # OurTodo Integration API
-OUR_TODO_API_URL = os.environ.get("OUR_TODO_API_URL", "https://todo-gateway-mqdsqta4hq-ew.gateway.dev")
+OUR_TODO_API_URL = os.environ.get("OUR_TODO_API_URL", "https://todo-gateway-5lquvkm5.ew.gateway.dev")
 
 # VAPID / Web Push Keys
 VAPID_FILE = DATA_DIR / "vapid_keys.json"
