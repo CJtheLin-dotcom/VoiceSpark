@@ -4,13 +4,14 @@ import logging
 import asyncio
 from pathlib import Path
 from typing import Optional, List, Dict, Any
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form, Query, Header, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from backend.config import BASE_DIR, AUDIO_DIR, VAPID_PUBLIC_KEY, GEMINI_MODEL
+from backend.config import BASE_DIR, AUDIO_DIR, VAPID_PUBLIC_KEY, GEMINI_MODEL, USE_VERTEX_AI, GCP_PROJECT
 from backend.database import (
     init_db, create_spark, get_spark, list_sparks,
     update_spark_success, update_spark_status, toggle_favorite, delete_spark,
@@ -21,14 +22,38 @@ from backend.audio_processor import save_uploaded_audio
 from backend.ai_spark import process_spark_with_ai
 from backend.todo_sync import push_action_item_to_our_todo, list_our_todo_categories
 from backend.push_service import send_push_notification
+from backend.storage_sync import (
+    restore_from_gcs, backup_to_gcs, periodic_sync_loop,
+    get_sync_status, upload_audio_file, delete_audio_file_from_gcs, ensure_audio_file
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-# Initialize DB on import
-init_db()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("🚀 VoiceSpark starting up...")
+    try:
+        restore_from_gcs(force=False)
+    except Exception as e:
+        logger.warning(f"Startup GCS restore error: {e}")
+    init_db()
 
-app = FastAPI(title="VoiceSpark · 灵感闪念与语音胶囊")
+    # Start periodic background sync loop (every 2 minutes)
+    sync_task = asyncio.create_task(periodic_sync_loop(interval_seconds=120))
+    logger.info("✅ VoiceSpark startup completed with GCS persistent storage.")
+
+    yield
+
+    # Graceful shutdown: flush final backup to GCS
+    logger.info("🛑 VoiceSpark shutting down, executing final backup to GCS...")
+    sync_task.cancel()
+    try:
+        backup_to_gcs()
+    except Exception as e:
+        logger.error(f"Shutdown GCS backup error: {e}")
+
+app = FastAPI(title="VoiceSpark · 灵感闪念与语音胶囊", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -151,6 +176,8 @@ async def create_audio_spark(
             audio_filename = filename
             audio_duration = duration
             audio_path = AUDIO_DIR / filename
+            # Upload recorded audio to GCS
+            background_tasks.add_task(upload_audio_file, filename)
 
     spark = create_spark({
         "id": spark_id,
@@ -207,9 +234,9 @@ def get_spark_audio(spark_id: str):
     spark = get_spark(spark_id)
     if not spark or not spark.get("audio_filename"):
         raise HTTPException(status_code=404, detail="Audio not found")
-    audio_file = AUDIO_DIR / spark["audio_filename"]
-    if not audio_file.exists():
-        raise HTTPException(status_code=404, detail="Audio file not found on disk")
+    audio_file = ensure_audio_file(spark["audio_filename"])
+    if not audio_file or not audio_file.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found on disk or cloud")
     return FileResponse(
         str(audio_file),
         media_type="audio/mpeg",
@@ -227,14 +254,16 @@ def remove_spark(spark_id: str):
     if not spark:
         raise HTTPException(status_code=404, detail="Spark not found")
     
-    # Delete audio file if exists
+    # Delete audio file if exists locally and in GCS
     if spark.get("audio_filename"):
-        audio_file = AUDIO_DIR / spark["audio_filename"]
+        audio_filename = spark["audio_filename"]
+        audio_file = AUDIO_DIR / audio_filename
         if audio_file.exists():
             try:
                 audio_file.unlink()
             except Exception:
                 pass
+        delete_audio_file_from_gcs(audio_filename)
 
     delete_spark(spark_id)
     return {"message": "已删除"}
@@ -302,7 +331,10 @@ def read_settings():
     return {
         "gemini_api_key_set": bool(get_setting("gemini_api_key")),
         "gemini_model": get_setting("gemini_model", GEMINI_MODEL),
-        "our_todo_api_url": get_setting("our_todo_api_url", "")
+        "our_todo_api_url": get_setting("our_todo_api_url", ""),
+        "use_vertex_ai": USE_VERTEX_AI,
+        "gcp_project": GCP_PROJECT,
+        "gcs_storage": get_sync_status()
     }
 
 @app.post("/api/settings")
@@ -314,6 +346,16 @@ def update_settings(req: SettingsUpdateRequest):
     if req.our_todo_api_url is not None:
         set_setting("our_todo_api_url", req.our_todo_api_url.strip())
     return {"message": "Settings updated"}
+
+# GCS Storage Persistence Endpoints
+@app.get("/api/storage/status")
+def get_storage_status_endpoint():
+    return get_sync_status()
+
+@app.post("/api/storage/sync")
+def trigger_storage_sync_endpoint(background_tasks: BackgroundTasks):
+    background_tasks.add_task(backup_to_gcs)
+    return {"status": "sync_triggered"}
 
 # PWA Static Files & Fallback
 STATIC_DIR = BASE_DIR / "static"

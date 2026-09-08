@@ -9,6 +9,13 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+def _notify_mutation():
+    try:
+        from backend.storage_sync import schedule_backup
+        schedule_backup()
+    except Exception:
+        pass
+
 def init_db():
     conn = get_db()
     cursor = conn.cursor()
@@ -87,6 +94,7 @@ def create_spark(data: Dict[str, Any]) -> Dict[str, Any]:
     ))
     conn.commit()
     conn.close()
+    _notify_mutation()
     return get_spark(spark_id)
 
 def get_spark(spark_id: str) -> Optional[Dict[str, Any]]:
@@ -188,6 +196,7 @@ def update_spark_success(spark_id: str, ai_result: Dict[str, Any]) -> bool:
     ))
     conn.commit()
     conn.close()
+    _notify_mutation()
     return True
 
 def update_spark_status(spark_id: str, status: str, error_message: str = "") -> bool:
@@ -199,6 +208,7 @@ def update_spark_status(spark_id: str, status: str, error_message: str = "") -> 
     )
     conn.commit()
     conn.close()
+    _notify_mutation()
     return True
 
 def toggle_favorite(spark_id: str) -> int:
@@ -213,6 +223,7 @@ def toggle_favorite(spark_id: str) -> int:
     cursor.execute("UPDATE sparks SET is_favorite = ? WHERE id = ?", (new_fav, spark_id))
     conn.commit()
     conn.close()
+    _notify_mutation()
     return new_fav
 
 def delete_spark(spark_id: str) -> bool:
@@ -222,6 +233,8 @@ def delete_spark(spark_id: str) -> bool:
     aff = cursor.rowcount
     conn.commit()
     conn.close()
+    if aff > 0:
+        _notify_mutation()
     return aff > 0
 
 def mark_action_item_synced(spark_id: str, item_index: int, todo_item_id: Optional[int] = None) -> bool:
@@ -241,6 +254,7 @@ def mark_action_item_synced(spark_id: str, item_index: int, todo_item_id: Option
         )
         conn.commit()
         conn.close()
+        _notify_mutation()
         return True
     return False
 
@@ -262,6 +276,7 @@ def set_setting(key: str, value: str):
     )
     conn.commit()
     conn.close()
+    _notify_mutation()
 
 # Push subscriptions
 def save_push_subscription(sub: Dict[str, Any], device_id: str = "default"):
@@ -279,6 +294,7 @@ def save_push_subscription(sub: Dict[str, Any], device_id: str = "default"):
     """, (endpoint, p256dh, auth, device_id, now))
     conn.commit()
     conn.close()
+    _notify_mutation()
 
 def list_push_subscriptions(device_id: Optional[str] = None) -> List[Dict[str, Any]]:
     conn = get_db()
@@ -295,5 +311,8 @@ def delete_push_subscription(endpoint: str):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (endpoint,))
+    aff = cursor.rowcount
     conn.commit()
     conn.close()
+    if aff > 0:
+        _notify_mutation()

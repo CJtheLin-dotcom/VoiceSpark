@@ -23,6 +23,10 @@
 5. **iOS 18 风格极致质感 PWA**：
    * 优雅深色玻璃拟态 (Glassmorphism)，适配 iPhone 灵动岛与底部安全区域。
    * 支持一键复制完整 Markdown（完美兼容 Apple 备忘录、Notion、Obsidian）。
+6. **Google Cloud Storage (GCS) 云端双向持久化**：
+   * SQLite 数据库 (`voicespark.db`) 实时原子增量备份至专属云存储桶 `gs://voice-spark-data-cjlinn-471522`。
+   * 原声录音音频 (`data/audio/*.mp3`) 与 Web Push 密钥 (`vapid_keys.json`) 自动云端持久化与按需拉取。
+   * 彻底解决 Cloud Run 容器无状态无盘问题：跨部署、更新修订版本、容器重启数据 100% 永不丢失。
 
 ---
 
@@ -31,15 +35,17 @@
 ```text
 VoiceSpark/
 ├── backend/
-│   ├── config.py            # 存储路径、Vertex AI / Gemini 配置、VAPID 秘钥
-│   ├── database.py          # SQLite 数据库：语音记录、分类、设置、Push 订阅
+│   ├── config.py            # 存储路径、Vertex AI / Gemini 配置、GCS 存储桶、VAPID 秘钥
+│   ├── database.py          # SQLite 数据库：语音记录、分类、设置、Push 订阅与变更通知
+│   ├── storage_sync.py      # Google Cloud Storage 双向持久化同步引擎 (DB原子快照/音频同步/密钥恢复)
+│   ├── prestart.py          # 容器启动前置冷启动数据还原程序
 │   ├── audio_processor.py   # ffmpeg 音频转码压缩、标准化与时长提取
 │   ├── ai_spark.py          # Gemini 2.5 Flash 音频转写、口语精修与要点提取
 │   ├── todo_sync.py         # 联动 OurTodoPWA（自动将待办推入 OurTodo）
 │   ├── push_service.py      # W3C VAPID Web Push 锁屏提醒通知
 │   └── main.py              # FastAPI 核心服务、REST 接口与 PWA 静态资源路由
 ├── static/
-│   ├── index.html           # iOS 18 风格 Vue 3 + Tailwind PWA 界面（带实时声波录音）
+│   ├── index.html           # iOS 18 风格 Vue 3 + Tailwind PWA 界面（带实时声波录音与GCS云同步状态）
 │   ├── manifest.json        # PWA 配置与 Web Share Target
 │   ├── sw.js                # Service Worker 离线缓存与锁屏推送监听
 │   ├── icons/               # 高清 PWA 图标 (192x192, 512x512, apple-touch-icon)
@@ -48,12 +54,14 @@ VoiceSpark/
 │   └── ios_shortcut_guide.md# iPhone 操作按钮 / 锁屏快捷指令配置教程
 ├── tests/
 │   ├── test_database.py     # 数据库生命周期单元测试
+│   ├── test_storage_sync.py # GCS 持久化存储与音频同步单元测试
 │   ├── test_audio_processor.py # 音频处理单元测试
 │   ├── test_ai_spark.py     # AI 解析容错测试
 │   └── test_api.py          # FastAPI REST 接口自动化集成测试
-├── Dockerfile               # 包含 ffmpeg 与 Python 3.12 的生产级容器配置
+├── Dockerfile               # 包含 ffmpeg 与 Python 3.12 的生产级容器配置（支持 prestart 恢复）
 ├── openapi.yaml             # Google Cloud API Gateway 声明式路由定义
-├── setup_gateway.sh         # 一键上云部署脚本 (基于 Cloud Run + API Gateway)
+├── setup_gateway.sh         # 一键上云全套部署脚本 (基于 Cloud Run + API Gateway + GCS 持久化)
+├── deploy.sh                # 极速 Cloud Run 更新部署脚本 (复用已有 Gateway，数十秒即可生效)
 ├── run_local.sh             # 本地极速启动脚本
 ├── requirements.txt         # Python 依赖清单
 └── README.md
@@ -72,18 +80,26 @@ VoiceSpark/
 ---
 
 ### 2. 部署到云端并获得公网免密 HTTPS（供手机 7×24h 随时使用）
-直接运行一键上云脚本：
-```bash
-# 在已登录 gcloud 的终端中运行：
-./setup_gateway.sh
-```
+
+- **首次完整部署（配置 Cloud Run、持久化存储桶与 API Gateway 网关）**：
+  ```bash
+  ./setup_gateway.sh
+  ```
+- **日常迭代更新部署（数十秒即可完成，自动同步持久化）**：
+  ```bash
+  ./deploy.sh
+  ```
+
 部署完成后，终端会自动输出专属于你的永久 HTTPS 地址：
 `https://voice-spark-gateway-5lquvkm5.ew.gateway.dev`
 
-#### ⚠️ Cloud Run 核心配置（`setup_gateway.sh` 已内置）：
-1. **`--no-cpu-throttling`（CPU 始终分配）**：保证接收到录音返回 202 后，后台多模态提炼与转写能全速执行不被休眠。
-2. **`--min-instances 1`（保持至少 1 个常驻实例）**：避免空闲缩容为 0 导致本地 SQLite 数据库及 VAPID 密钥丢失，同时彻底消除冷启动。
-3. **`--max-instances 1`（限制单实例）**：保证所有语音数据写入同一个本地 SQLite，避免多实例数据割裂。
+#### ⚠️ Cloud Run 核心生产配置（部署脚本已全内置）：
+1. **Google Cloud Storage (GCS) 云端双向持久化**：
+   * 环境变量传入 `GCS_BUCKET=voice-spark-data-cjlinn-471522`、`STORAGE_SYNC_ENABLED=true`。
+   * 容器启动时通过 `python -m backend.prestart` 从 GCS 恢复数据库、录音文件与 VAPID 密钥；运行中每次新增灵感或状态变更均原子同步，关机时平滑执行最终落盘备份。
+2. **`--no-cpu-throttling`（CPU 始终分配）**：保证接收到录音返回 202 后，后台多模态提炼与转写能全速执行不被休眠。
+3. **`--min-instances 1`（保持至少 1 个常驻实例）**：保持常驻实例，彻底消除冷启动。
+4. **`--max-instances 1`（限制单实例）**：保证所有语音写入同一个活跃实例，避免多实例数据割裂。
 
 ---
 

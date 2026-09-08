@@ -428,6 +428,33 @@
             >
           </div>
 
+          <!-- Google Cloud Storage 云端持久化 -->
+          <div class="bg-black/40 p-3.5 rounded-2xl border border-sky-500/30 space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-bold text-white flex items-center space-x-1.5">
+                <span>🗄️ Google Cloud Storage 持久化</span>
+              </div>
+              <span class="text-[10px] bg-sky-500/20 text-sky-300 font-semibold px-2 py-0.5 rounded-md border border-sky-500/30">
+                云端同步中 ☁️
+              </span>
+            </div>
+            <div class="text-[11px] text-gray-300 leading-relaxed bg-black/50 p-2.5 rounded-xl border border-white/5 space-y-1">
+              <div>存储桶: <code class="text-sky-300 font-mono font-bold">{{ gcsStorage?.bucket || 'voice-spark-data-cjlinn-471522' }}</code></div>
+              <div class="text-gray-400 text-[10px]">
+                数据库、录音原声与推送密钥实时原子备份至 GCS，无论 Cloud Run 重启、更新部署还是伸缩，数据永不丢失。
+              </div>
+              <div v-if="gcsStorage?.last_backup_time" class="text-[10px] text-gray-400 pt-0.5">
+                最近同步: <span class="text-sky-300 font-mono">{{ formatTime(gcsStorage.last_backup_time) }}</span>
+              </div>
+              <div v-if="gcsStorage?.audio_files_count !== undefined" class="text-[10px] text-gray-400">
+                云端录音文件数: <span class="text-sky-300 font-mono">{{ gcsStorage.audio_files_count }}</span> 个
+              </div>
+            </div>
+            <button @click="triggerGcsSync" :disabled="isSyncingGcs" class="w-full py-1.5 text-[11px] bg-sky-950/50 hover:bg-sky-900/60 text-sky-200 rounded-lg transition border border-sky-500/30 flex items-center justify-center space-x-1">
+              <span>{{ isSyncingGcs ? '正在同步至 GCS...' : '☁️ 立即同步至云端存储桶' }}</span>
+            </button>
+          </div>
+
           <!-- Web Push Test -->
           <div class="pt-2 border-t border-white/10 space-y-2">
             <div class="flex items-center justify-between">
@@ -815,13 +842,34 @@
         };
 
         // Settings load & save
+        const gcsStorage = ref(null);
+        const isSyncingGcs = ref(false);
+
         const loadSettings = async () => {
           try {
             const resp = await fetch('/api/settings');
             const data = await resp.json();
             settings.value.our_todo_api_url = data.our_todo_api_url || '';
             settings.value.gemini_model = data.gemini_model || 'gemini-2.5-flash';
+            gcsStorage.value = data.gcs_storage || null;
           } catch (e) {}
+        };
+
+        const triggerGcsSync = async () => {
+          isSyncingGcs.value = true;
+          try {
+            const res = await fetch('/api/storage/sync', { method: 'POST' });
+            if (res.ok) {
+              alert('☁️ 已触发云端同步，数据与录音已安全备份至 GCS！');
+              setTimeout(loadSettings, 1500);
+            } else {
+              alert('同步请求失败');
+            }
+          } catch (e) {
+            alert('同步出错: ' + e.message);
+          } finally {
+            isSyncingGcs.value = false;
+          }
         };
 
         const saveSettings = async () => {
@@ -955,7 +1003,11 @@
           deviceId,
           pushSubscribed,
           togglePushNotifications,
-          sendTestPush
+          sendTestPush,
+          // GCS Storage Persistence
+          gcsStorage,
+          isSyncingGcs,
+          triggerGcsSync
         };
       }
     }).mount('#app');

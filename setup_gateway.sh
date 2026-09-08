@@ -9,27 +9,41 @@ SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 API_ID="voice-spark-api"
 CONFIG_ID="voice-spark-config-$(date +%s)"
 GATEWAY_ID="voice-spark-gateway"
+GCS_BUCKET="voice-spark-data-cjlinn-471522"
 SPEC_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/openapi.yaml"
 
 echo "=================================================="
 echo "🚀 开始部署 VoiceSpark · 灵感闪念与语音胶囊"
 echo "项目 ID: ${PROJECT_ID}"
 echo "部署区域: ${REGION}"
+echo "存储桶: gs://${GCS_BUCKET}"
 echo "=================================================="
 
 # 1. 设置当前默认项目
 gcloud config set project "${PROJECT_ID}"
 
-# 2. 部署 Cloud Run 私有后端 (配置常驻、无 CPU 节流、单实例)
+# 确保 GCS 存储桶已就绪
+if ! gcloud storage buckets describe "gs://${GCS_BUCKET}" --project="${PROJECT_ID}" &>/dev/null; then
+  echo "📦 创建持久化存储桶: gs://${GCS_BUCKET}..."
+  gcloud storage buckets create "gs://${GCS_BUCKET}" \
+    --location="${REGION}" \
+    --project="${PROJECT_ID}" \
+    --uniform-bucket-level-access
+fi
+
+# 2. 部署 Cloud Run 私有后端 (配置常驻、无 CPU 节流、单实例、GCS 持久化同步)
 echo "📦 [1/6] 部署 Cloud Run 私有容器服务 (${SERVICE_NAME})..."
 gcloud run deploy "${SERVICE_NAME}" \
   --source . \
   --region "${REGION}" \
   --project="${PROJECT_ID}" \
+  --memory=1Gi \
+  --timeout=600 \
   --no-allow-unauthenticated \
   --no-cpu-throttling \
   --min-instances=1 \
-  --max-instances=1
+  --max-instances=1 \
+  --set-env-vars="GCS_BUCKET=${GCS_BUCKET},STORAGE_SYNC_ENABLED=true,GCP_PROJECT=${PROJECT_ID}"
 
 CLOUD_RUN_URL=$(gcloud run services describe "${SERVICE_NAME}" \
   --region="${REGION}" \

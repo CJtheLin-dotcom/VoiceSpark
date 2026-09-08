@@ -25,10 +25,12 @@ ENV DATA_DIR=/app/data
 ENV USE_VERTEX_AI=true
 ENV GCP_PROJECT=cjlinn-471522
 ENV GCP_LOCATION=us-central1
+ENV GCS_BUCKET=voice-spark-data-cjlinn-471522
+ENV STORAGE_SYNC_ENABLED=true
 
 # Ensure data and audio directory exist
 RUN mkdir -p /app/data /app/data/audio
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "python -m backend.prestart && uvicorn backend.main:app --host 0.0.0.0 --port ${PORT}"]

@@ -9,3 +9,4 @@ google-genai>=1.0.0
 google-auth>=2.29.0
 pillow>=10.3.0
 pytest>=8.0.0
+google-cloud-storage>=2.14.0

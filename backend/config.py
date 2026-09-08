@@ -36,6 +36,10 @@ OUR_TODO_API_URL = os.environ.get("OUR_TODO_API_URL", "https://todo-gateway-mqds
 VAPID_FILE = DATA_DIR / "vapid_keys.json"
 VAPID_CLAIMS_EMAIL = os.environ.get("VAPID_CLAIMS_EMAIL", "mailto:admin@voicespark.app")
 
+# Google Cloud Storage Persistence Configuration
+GCS_BUCKET = os.environ.get("GCS_BUCKET", "voice-spark-data-cjlinn-471522")
+STORAGE_SYNC_ENABLED = os.environ.get("STORAGE_SYNC_ENABLED", "true").lower() in ("true", "1", "yes")
+
 def get_or_create_vapid_keys():
     # 1. First check environment variables
     env_priv = os.environ.get("VAPID_PRIVATE_KEY")
