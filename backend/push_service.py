@@ -2,10 +2,25 @@ import json
 import logging
 from typing import Optional
 from pywebpush import webpush, WebPushException
+from py_vapid import Vapid
 from backend.config import VAPID_PRIVATE_KEY, VAPID_CLAIMS_EMAIL
 from backend.database import list_push_subscriptions, delete_push_subscription
 
 logger = logging.getLogger(__name__)
+
+_vapid_obj = None
+
+def get_vapid_obj():
+    global _vapid_obj
+    if _vapid_obj is None:
+        try:
+            if "-----BEGIN" in VAPID_PRIVATE_KEY:
+                _vapid_obj = Vapid.from_pem(VAPID_PRIVATE_KEY.encode("utf-8"))
+            else:
+                _vapid_obj = Vapid.from_string(private_key=VAPID_PRIVATE_KEY)
+        except Exception as e:
+            logger.error(f"Failed to initialize Vapid object: {e}")
+    return _vapid_obj
 
 def send_push_notification(
     title: str,
@@ -46,10 +61,14 @@ def send_push_notification(
             }
         }
         try:
+            vapid_obj = get_vapid_obj()
+            if not vapid_obj:
+                logger.error("Vapid instance unavailable, skipping push notification")
+                continue
             webpush(
                 subscription_info=subscription_info,
                 data=payload,
-                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_private_key=vapid_obj,
                 vapid_claims=vapid_claims
             )
             logger.info(f"Web Push sent successfully to {sub['endpoint'][:30]}...")
