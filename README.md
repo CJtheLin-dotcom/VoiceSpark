@@ -9,7 +9,7 @@
 1. **随说随记 · 音频多模态直传**：
    * 原生支持 Web 端直接录音（实时声波动效与计时器）、上传任意格式音频（`m4a`, `mp3`, `wav`, `webm`, `aac`）。
    * 支持通过 iOS 快捷指令（Action Button / 锁屏组件）一键长按录音并秒传后台。
-2. **Gemini 2.5 Flash 深度思维整理**：
+2. **Gemini 3.8 Flash 深度思维整理**：
    * **逐字口播 (Raw Transcript)**：一字一句如实听写，绝不省略任何细节。
    * **去口头禅精修稿 (Polished Text)**：彻底剔除口水词与停顿，梳理语序与标点，输出排版考究的正式笔记。
    * **四维智能归类**：自动归入「💡 灵感闪念」、「✅ 待办行动」、「📖 见闻随笔」、「🧠 情绪复盘」。
@@ -40,7 +40,7 @@ VoiceSpark/
 │   ├── storage_sync.py      # Google Cloud Storage 双向持久化同步引擎 (DB原子快照/音频同步/密钥恢复)
 │   ├── prestart.py          # 容器启动前置冷启动数据还原程序
 │   ├── audio_processor.py   # ffmpeg 音频转码压缩、标准化与时长提取
-│   ├── ai_spark.py          # Gemini 2.5 Flash 音频转写、口语精修与要点提取
+│   ├── ai_spark.py          # Gemini 3.8 Flash 音频转写、口语精修与要点提取
 │   ├── todo_sync.py         # 联动 OurTodoPWA（自动将待办推入 OurTodo）
 │   ├── push_service.py      # W3C VAPID Web Push 锁屏提醒通知
 │   └── main.py              # FastAPI 核心服务、REST 接口与 PWA 静态资源路由

@@ -129,7 +129,7 @@ def list_sparks(
     params = []
 
     if device_id and device_id != "all":
-        query += " AND (device_id = ? OR device_id = 'default')"
+        query += " AND device_id = ?"
         params.append(device_id)
 
     if category and category != "all":
@@ -331,7 +331,7 @@ def list_push_subscriptions(device_id: Optional[str] = None) -> List[Dict[str, A
     conn = get_db()
     cursor = conn.cursor()
     if device_id and device_id != "all":
-        cursor.execute("SELECT * FROM push_subscriptions WHERE device_id = ? OR device_id = 'default'", (device_id,))
+        cursor.execute("SELECT * FROM push_subscriptions WHERE device_id = ?", (device_id,))
     else:
         cursor.execute("SELECT * FROM push_subscriptions")
     rows = cursor.fetchall()

@@ -84,3 +84,36 @@ def test_push_subscriptions():
     delete_push_subscription(endpoint)
     subs2 = list_push_subscriptions(device_id="test_dev")
     assert not any(s["endpoint"] == endpoint for s in subs2)
+
+def test_device_isolation():
+    init_db()
+    # User A creates a spark
+    create_spark({
+        "id": "spark_user_a",
+        "title": "User A Spark",
+        "category": "idea",
+        "device_id": "device_user_a"
+    })
+
+    # Legacy default spark
+    create_spark({
+        "id": "spark_default",
+        "title": "Default Spark",
+        "category": "idea",
+        "device_id": "default"
+    })
+
+    # User B queries their list
+    user_b_sparks = list_sparks(device_id="device_user_b")
+    assert not any(s["id"] == "spark_user_a" for s in user_b_sparks)
+    assert not any(s["id"] == "spark_default" for s in user_b_sparks)
+
+    # User A queries their list
+    user_a_sparks = list_sparks(device_id="device_user_a")
+    assert any(s["id"] == "spark_user_a" for s in user_a_sparks)
+    assert not any(s["id"] == "spark_default" for s in user_a_sparks)
+
+    # Cleanup
+    delete_spark("spark_user_a")
+    delete_spark("spark_default")
+

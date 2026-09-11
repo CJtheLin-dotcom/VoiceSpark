@@ -25,9 +25,9 @@ if local_bin not in current_path:
 # Vertex AI & Gemini Configuration
 USE_VERTEX_AI = os.environ.get("USE_VERTEX_AI", "true").lower() in ("true", "1", "yes")
 GCP_PROJECT = os.environ.get("GCP_PROJECT") or os.environ.get("GOOGLE_CLOUD_PROJECT") or "cjlinn-471522"
-GCP_LOCATION = os.environ.get("GCP_LOCATION", "us-central1")
+GCP_LOCATION = os.environ.get("GCP_LOCATION", "global")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 
 # OurTodo Integration API
 OUR_TODO_API_URL = os.environ.get("OUR_TODO_API_URL", "https://todo-gateway-5lquvkm5.ew.gateway.dev")

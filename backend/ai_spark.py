@@ -47,11 +47,13 @@ SYSTEM_PROMPT = """你是一个顶级的思维整理专家、个人灵感秘书�
 }
 """
 
-def get_client(api_key: Optional[str] = None) -> Optional[genai.Client]:
+def get_client(api_key: Optional[str] = None, model: Optional[str] = None) -> Optional[genai.Client]:
     # 1. Primary: Google Cloud Vertex AI Enterprise Client
     if USE_VERTEX_AI:
         project = os.environ.get("GCP_PROJECT") or os.environ.get("GOOGLE_CLOUD_PROJECT") or GCP_PROJECT
-        location = os.environ.get("GCP_LOCATION") or GCP_LOCATION
+        target_model = model or get_setting("gemini_model") or GEMINI_MODEL
+        # Gemini 3.8 Flash requires the global endpoint for Enterprise / Vertex AI
+        location = "global" if "3.8" in target_model else (os.environ.get("GCP_LOCATION") or GCP_LOCATION)
         creds = None
         try:
             import google.auth
@@ -67,9 +69,15 @@ def get_client(api_key: Optional[str] = None) -> Optional[genai.Client]:
 
         if creds:
             try:
-                return genai.Client(vertexai=True, project=project, location=location, credentials=creds)
+                return genai.Client(
+                    enterprise=True,
+                    project=project,
+                    location=location,
+                    credentials=creds,
+                    http_options={'headers': {'X-Goog-User-Project': project}}
+                )
             except Exception as e:
-                logger.error(f"Failed to create Vertex AI client: {e}")
+                logger.error(f"Failed to create Vertex AI Enterprise client: {e}")
 
     # 2. Secondary fallback: Gemini Developer API Key
     key = api_key or get_setting("gemini_api_key") or GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
@@ -134,10 +142,11 @@ def process_spark_with_ai(
     client: Optional[genai.Client] = None
 ) -> Dict[str, Any]:
     """
-    Multimodal thought extraction using Gemini 2.5 Flash.
+    Multimodal thought extraction using Gemini 3.8 Flash.
     Accepts either an audio file or direct text.
     """
-    cli = client or get_client()
+    model_name = get_setting("gemini_model") or GEMINI_MODEL
+    cli = client or get_client(model=model_name)
     if not cli:
         raise RuntimeError("Google Gemini / Vertex AI client could not be initialized. Please check credentials.")
 
@@ -167,13 +176,18 @@ def process_spark_with_ai(
     else:
         raise ValueError("Either audio_path or text_content must be provided.")
 
-    model_name = get_setting("gemini_model") or GEMINI_MODEL
-
-    config = types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,
-        temperature=0.2,
-        response_mime_type="application/json"
-    )
+    if "3.8" in model_name:
+        config = types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            thinking_config=types.ThinkingConfig(thinking_level="MEDIUM"),
+            response_mime_type="application/json"
+        )
+    else:
+        config = types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            temperature=0.2,
+            response_mime_type="application/json"
+        )
 
     logger.info(f"Invoking Gemini model: {model_name} for VoiceSpark extraction...")
     response = cli.models.generate_content(

@@ -438,7 +438,7 @@
             <input 
               v-model="settings.gemini_model" 
               type="text" 
-              placeholder="gemini-2.5-flash"
+              placeholder="gemini-3.8-flash"
               class="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500 font-mono"
             >
           </div>
@@ -537,7 +537,7 @@
         // Settings
         const settings = ref({
           our_todo_api_url: '',
-          gemini_model: 'gemini-2.5-flash'
+          gemini_model: 'gemini-3.8-flash'
         });
 
         // Push state
@@ -892,7 +892,7 @@
             const resp = await fetch('/api/settings');
             const data = await resp.json();
             settings.value.our_todo_api_url = data.our_todo_api_url || '';
-            settings.value.gemini_model = data.gemini_model || 'gemini-2.5-flash';
+            settings.value.gemini_model = data.gemini_model || 'gemini-3.8-flash';
             gcsStorage.value = data.gcs_storage || null;
           } catch (e) {}
         };

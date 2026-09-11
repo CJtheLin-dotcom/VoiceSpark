@@ -44,7 +44,7 @@ gcloud run deploy "${SERVICE_NAME}" \
   --max-instances=1 \
   --no-cpu-throttling \
   --no-allow-unauthenticated \
-  --set-env-vars="GCS_BUCKET=${GCS_BUCKET},STORAGE_SYNC_ENABLED=true,GCP_PROJECT=${PROJECT_ID}" \
+  --set-env-vars="GCS_BUCKET=${GCS_BUCKET},STORAGE_SYNC_ENABLED=true,GCP_PROJECT=${PROJECT_ID},GEMINI_MODEL=gemini-3.8-flash,GCP_LOCATION=global" \
   --quiet
 
 echo ""
