@@ -1,0 +1,17 @@
+{
+  "name": "三星电视遥控器",
+  "short_name": "三星遥控",
+  "description": "Samsung Smart TV 局域网直连遥控器",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='42' fill='%231c1f26'/%3E%3Ccircle cx='96' cy='52' r='14' fill='%23ef4444'/%3E%3Ccircle cx='96' cy='118' r='44' fill='%232a2f3a' stroke='%234b5563' stroke-width='4'/%3E%3Ccircle cx='96' cy='118' r='18' fill='%233b82f6'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}

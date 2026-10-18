@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="三星遥控器" />
+  <link rel="manifest" href="./manifest.json" />
+  <title>Samsung TV 遥控器</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --remote-bg: linear-gradient(165deg, #232730 0%, #16181f 100%);
+      --btn-bg: #2a2f3a;
+      --btn-active: #3c4352;
+      --accent: #3b82f6;
+      --danger: #ef4444;
+      --success: #10b981;
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px 12px 32px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .remote-shell {
+      width: 100%;
+      max-width: 370px;
+      background: var(--remote-bg);
+      border-radius: 42px;
+      padding: 22px 20px 28px;
+      box-shadow:
+        0 24px 48px rgba(0, 0, 0, 0.65),
+        inset 0 1px 1px rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 0 4px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      color: var(--muted);
+      background: rgba(0, 0, 0, 0.3);
+      padding: 6px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 240px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #6b7280;
+      flex-shrink: 0;
+    }
+    .status-dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+    .status-dot.pairing {
+      background: #f59e0b;
+      box-shadow: 0 0 8px #f59e0b;
+    }
+    .status-dot.error {
+      background: var(--danger);
+    }
+
+    .icon-btn {
+      background: var(--btn-bg);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      color: var(--text);
+      border-radius: 50%;
+      width: 42px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      cursor: pointer;
+      transition: transform 0.08s ease, background 0.12s ease;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+    }
+
+    button:active, .dpad-btn:active {
+      transform: scale(0.93);
+      background: var(--btn-active) !important;
+    }
+
+    .drawer {
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 18px;
+      padding: 14px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .drawer.open {
+      display: flex;
+    }
+
+    .mode-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: #14171d;
+      padding: 3px;
+      border-radius: 10px;
+      font-size: 12px;
+    }
+    .mode-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      padding: 6px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .mode-btn.active {
+      background: var(--btn-bg);
+      color: var(--text);
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      background: #14171d;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text);
+      padding: 9px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      outline: none;
+      user-select: text;
+    }
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    .action-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .action-btn.secondary {
+      background: #374151;
+    }
+
+    .cert-box {
+      font-size: 12px;
+      color: #fcd34d;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      padding: 8px 10px;
+      border-radius: 10px;
+      line-height: 1.45;
+      display: none;
+    }
+    .cert-box a {
+      color: #60a5fa;
+      text-decoration: underline;
+      font-weight: 600;
+    }
+
+    .tv-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+    }
+    .tv-item {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 8px 10px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .top-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 8px;
+    }
+
+    .power-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(239, 68, 68, 0.18);
+      border: 1px solid rgba(239, 68, 68, 0.45);
+      color: #f87171;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.2);
+    }
+
+    .pill-btn {
+      background: var(--btn-bg);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      color: var(--text);
+      padding: 10px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .dpad-wrapper {
+      display: flex;
+      justify-content: center;
+      margin: 4px 0;
+    }
+
+    .dpad {
+      position: relative;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #252a34 0%, #1b1f27 100%);
+      box-shadow:
+        0 10px 26px rgba(0, 0, 0, 0.5),
+        inset 0 2px 3px rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .dpad-btn {
+      position: absolute;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border-radius: 16px;
+    }
+
+    .dpad-up {
+      top: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 58px;
+    }
+    .dpad-down {
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 58px;
+    }
+    .dpad-left {
+      left: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 58px;
+      height: 80px;
+    }
+    .dpad-right {
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 58px;
+      height: 80px;
+    }
+    .dpad-up:active, .dpad-down:active {
+      transform: translateX(-50%) scale(0.92);
+    }
+    .dpad-left:active, .dpad-right:active {
+      transform: translateY(-50%) scale(0.92);
+    }
+
+    .dpad-ok {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 82px;
+      height: 82px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #323846, #232732);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+    }
+    .dpad-ok:active {
+      transform: translate(-50%, -50%) scale(0.94);
+    }
+
+    .nav-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      padding: 0 6px;
+    }
+
+    .nav-btn {
+      background: var(--btn-bg);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      color: var(--text);
+      height: 48px;
+      border-radius: 16px;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .rocker-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      padding: 0 6px;
+      align-items: center;
+    }
+
+    .rocker {
+      background: var(--btn-bg);
+      border-radius: 26px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      height: 136px;
+      padding: 6px;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+    }
+
+    .rocker-btn {
+      width: 100%;
+      height: 46px;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 20px;
+      font-weight: 600;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+
+    .rocker-label {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+
+    .center-col {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      height: 136px;
+      justify-content: space-between;
+    }
+
+    .center-col .nav-btn {
+      height: 62px;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 12px;
+    }
+
+    .numpad-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .num-btn {
+      background: var(--btn-bg);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      color: var(--text);
+      height: 42px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 18px;
+      background: rgba(17, 24, 39, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text);
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .toast.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="remote-shell">
+    <!-- Header Status & Config Toggle -->
+    <div class="header-bar">
+      <div class="status-pill" onclick="toggleDrawer('connDrawer')" title="点击配置电视连接">
+        <span id="statusDot" class="status-dot"></span>
+        <span id="statusText">点击连接三星电视</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="icon-btn" onclick="toggleDrawer('numDrawer')" title="数字键盘">123</button>
+        <button class="icon-btn" onclick="toggleDrawer('connDrawer')" title="设置">⚙️</button>
+      </div>
+    </div>
+
+    <!-- Connection Settings Drawer -->
+    <div id="connDrawer" class="drawer">
+      <div class="mode-switch">
+        <button id="modeDirectBtn" class="mode-btn" onclick="setMode('direct')">📱 手机直连 (无需开电脑)</button>
+        <button id="modeProxyBtn" class="mode-btn" onclick="setMode('proxy')">💻 后端代理模式</button>
+      </div>
+
+      <div class="input-row">
+        <input type="text" id="tvIpInput" placeholder="输入电视 IP，如 192.168.88.50" />
+        <button class="action-btn" onclick="connectTV()">连接</button>
+        <button id="scanBtn" class="action-btn secondary" onclick="discoverTVs()">扫描</button>
+      </div>
+
+      <div id="certHelper" class="cert-box">
+        💡 <b>iPhone 首次直连必看（只需做一次）</b>：<br/>
+        1. 先点击 👉 <a id="certLink" href="#" target="_blank">打开电视安全端口授权页</a><br/>
+        2. Safari 会提示“此连接非私人连接”，点<b>“显示详细信息 $\rightarrow$ 访问此网站”</b>，看到一串英文 JSON 后返回本页。<br/>
+        3. 点击上方【连接】，在电视右上角点一次【允许】即可永久配对！
+      </div>
+
+      <button class="action-btn secondary" style="width:100%; padding:10px;" onclick="exportStandaloneHTML()">
+        📥 下载 iPhone 离线独立版 (内嵌配对信息，关电脑可用)
+      </button>
+
+      <div id="tvList" class="tv-list"></div>
+    </div>
+
+    <!-- Number Pad Drawer -->
+    <div id="numDrawer" class="drawer">
+      <div class="numpad-grid">
+        <button class="num-btn" onclick="sendKey('KEY_1')">1</button>
+        <button class="num-btn" onclick="sendKey('KEY_2')">2</button>
+        <button class="num-btn" onclick="sendKey('KEY_3')">3</button>
+        <button class="num-btn" onclick="sendKey('KEY_4')">4</button>
+        <button class="num-btn" onclick="sendKey('KEY_5')">5</button>
+        <button class="num-btn" onclick="sendKey('KEY_6')">6</button>
+        <button class="num-btn" onclick="sendKey('KEY_7')">7</button>
+        <button class="num-btn" onclick="sendKey('KEY_8')">8</button>
+        <button class="num-btn" onclick="sendKey('KEY_9')">9</button>
+        <button class="num-btn" onclick="sendKey('KEY_MENU')">菜单</button>
+        <button class="num-btn" onclick="sendKey('KEY_0')">0</button>
+        <button class="num-btn" onclick="sendKey('KEY_INFO')">信息</button>
+      </div>
+    </div>
+
+    <!-- Power & Source Row -->
+    <div class="top-controls">
+      <button class="power-btn" onclick="sendKey('KEY_POWER')" title="电源开关">⏻</button>
+      <button class="pill-btn" onclick="sendKey('KEY_AMBIENT')">环境屏</button>
+      <button class="pill-btn" onclick="sendKey('KEY_SOURCE')">信号源 ⎆</button>
+    </div>
+
+    <!-- Circular D-Pad -->
+    <div class="dpad-wrapper">
+      <div class="dpad">
+        <button class="dpad-btn dpad-up" onclick="sendKey('KEY_UP')">▲</button>
+        <button class="dpad-btn dpad-down" onclick="sendKey('KEY_DOWN')">▼</button>
+        <button class="dpad-btn dpad-left" onclick="sendKey('KEY_LEFT')">◀</button>
+        <button class="dpad-btn dpad-right" onclick="sendKey('KEY_RIGHT')">▶</button>
+        <button class="dpad-ok" onclick="sendKey('KEY_ENTER')">OK</button>
+      </div>
+    </div>
+
+    <!-- Navigation Row: Return, Home, Play/Pause -->
+    <div class="nav-row">
+      <button class="nav-btn" onclick="sendKey('KEY_RETURN')">↩ 返回</button>
+      <button class="nav-btn" onclick="sendKey('KEY_HOME')">⌂ 主页</button>
+      <button class="nav-btn" onclick="sendKey('KEY_PLAY')">⏯ 播放</button>
+    </div>
+
+    <!-- Volume & Channel Rockers -->
+    <div class="rocker-row">
+      <div class="rocker">
+        <button class="rocker-btn" onclick="sendKey('KEY_VOLUP')">＋</button>
+        <span class="rocker-label">VOL 音量</span>
+        <button class="rocker-btn" onclick="sendKey('KEY_VOLDOWN')">－</button>
+      </div>
+
+      <div class="center-col">
+        <button class="nav-btn" onclick="sendKey('KEY_MUTE')">
+          <span style="font-size:16px;">🔇</span>
+          <span>静音</span>
+        </button>
+        <button class="nav-btn" onclick="sendKey('KEY_GUIDE')">
+          <span style="font-size:16px;">📺</span>
+          <span>指南</span>
+        </button>
+      </div>
+
+      <div class="rocker">
+        <button class="rocker-btn" onclick="sendKey('KEY_CHUP')">︿</button>
+        <span class="rocker-label">CH 频道</span>
+        <button class="rocker-btn" onclick="sendKey('KEY_CHDOWN')">﹀</button>
+      </div>
+    </div>
+
+    <!-- Quick Keyboard Input -->
+    <div class="input-row" style="padding: 4px 4px 0;">
+      <input type="text" id="tvTextInput" placeholder="手机打字直接发往电视搜索框..." onkeydown="if(event.key==='Enter') sendText()" />
+      <button class="action-btn" onclick="sendText()">发送</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    // Embedded defaults (auto-populated when exporting standalone offline file)
+    const EMBEDDED_TV_IP = "";
+    const EMBEDDED_TV_TOKEN = "";
+
+    const memStore = {};
+    function getStore(k) {
+      try { return localStorage.getItem(k) || memStore[k] || ''; } catch (e) { return memStore[k] || ''; }
+    }
+    function setStore(k, v) {
+      memStore[k] = v;
+      try { localStorage.setItem(k, v); } catch (e) {}
+    }
+
+    let mode = getStore('samsung_remote_mode') || 'direct';
+    let directWs = null;
+    const APP_NAME_B64 = btoa('AntigravityRemote');
+
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+
+    function vibrate(ms = 18) {
+      if (navigator.vibrate) {
+        try { navigator.vibrate(ms); } catch (e) {}
+      }
+    }
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+    }
+
+    function toggleDrawer(id) {
+      vibrate(12);
+      document.getElementById(id).classList.toggle('open');
+    }
+
+    function updateStatusUI(state, text) {
+      document.getElementById('statusDot').className = 'status-dot ' + (state || '');
+      document.getElementById('statusText').textContent = text;
+    }
+
+    function updateCertLink() {
+      const ip = (document.getElementById('tvIpInput').value || '').trim() || '192.168.88.x';
+      const link = document.getElementById('certLink');
+      link.href = `https://${ip}:8002/api/v2/`;
+      link.textContent = `https://${ip}:8002/api/v2/`;
+    }
+
+    document.getElementById('tvIpInput').addEventListener('input', updateCertLink);
+
+    function setMode(newMode) {
+      mode = newMode;
+      setStore('samsung_remote_mode', mode);
+      document.getElementById('modeDirectBtn').className = 'mode-btn ' + (mode === 'direct' ? 'active' : '');
+      document.getElementById('modeProxyBtn').className = 'mode-btn ' + (mode === 'proxy' ? 'active' : '');
+      document.getElementById('certHelper').style.display = mode === 'direct' ? 'block' : 'none';
+      document.getElementById('scanBtn').style.display = mode === 'proxy' ? 'inline-block' : 'none';
+      updateCertLink();
+    }
+
+    function connectDirectWebSocket(ip, onReady) {
+      if (directWs && directWs.readyState === WebSocket.OPEN) {
+        if (onReady) onReady(directWs);
+        return;
+      }
+      if (directWs) {
+        try { directWs.close(); } catch (e) {}
+      }
+
+      const token = getStore(`samsung_token_${ip}`) || EMBEDDED_TV_TOKEN || '';
+      let url = `wss://${ip}:8002/api/v2/channels/samsung.remote.control?name=${APP_NAME_B64}`;
+      if (token) url += `&token=${token}`;
+
+      updateStatusUI('pairing', `直连中: ${ip}...`);
+      const ws = new WebSocket(url);
+      directWs = ws;
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.event === 'ms.channel.connect') {
+            if (msg.data && msg.data.token) {
+              setStore(`samsung_token_${ip}`, msg.data.token);
+            }
+            updateStatusUI('connected', `已直连: ${ip}`);
+            document.getElementById('connDrawer').classList.remove('open');
+            showToast('✅ iPhone 已直连三星电视！');
+            if (onReady) {
+              onReady(ws);
+              onReady = null;
+            }
+          } else if (msg.event === 'ms.channel.unauthorized' || msg.event === 'ms.channel.timeOut') {
+            updateStatusUI('error', '电视端未点允许');
+            showToast('请在电视右上角弹窗点【允许】');
+          }
+        } catch (e) {}
+      };
+
+      ws.onerror = () => {
+        updateStatusUI('error', '需先点下方链接信任电视证书');
+        document.getElementById('connDrawer').classList.add('open');
+        document.getElementById('certHelper').style.display = 'block';
+      };
+
+      ws.onclose = () => {
+        if (directWs === ws) {
+          directWs = null;
+        }
+      };
+    }
+
+    async function connectTV(ipOverride) {
+      const ip = (ipOverride || document.getElementById('tvIpInput').value || '').trim();
+      if (!ip) {
+        showToast('请先输入电视 IP 地址');
+        return;
+      }
+      setStore('samsung_tv_ip', ip);
+      updateCertLink();
+
+      if (mode === 'direct') {
+        connectDirectWebSocket(ip);
+        return;
+      }
+
+      updateStatusUI('pairing', `正在连接 ${ip}...`);
+      try {
+        const res = await fetch('/api/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tv_ip: ip })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          updateStatusUI('connected', `已连接: ${data.tv_name || ip}`);
+          showToast('✅ 连接成功！');
+          document.getElementById('connDrawer').classList.remove('open');
+        } else {
+          updateStatusUI('error', '连接失败');
+          showToast(data.message || '连接失败');
+        }
+      } catch (e) {
+        showToast('已自动切换为【手机直连模式】');
+        setMode('direct');
+        connectDirectWebSocket(ip);
+      }
+    }
+
+    async function sendKey(key) {
+      vibrate(20);
+      const ip = (document.getElementById('tvIpInput').value || getStore('samsung_tv_ip') || EMBEDDED_TV_IP || '').trim();
+      if (!ip) {
+        showToast('请先输入三星电视 IP');
+        document.getElementById('connDrawer').classList.add('open');
+        return;
+      }
+
+      if (mode === 'direct') {
+        connectDirectWebSocket(ip, (ws) => {
+          ws.send(JSON.stringify({
+            method: 'ms.remote.control',
+            params: {
+              Cmd: 'Click',
+              DataOfCmd: key,
+              Option: 'false',
+              TypeOfRemote: 'SendRemoteKey'
+            }
+          }));
+        });
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key })
+        });
+        const data = await res.json();
+        if (!data.ok) showToast(data.message || '发送失败');
+      } catch (e) {
+        setMode('direct');
+        sendKey(key);
+      }
+    }
+
+    async function sendText() {
+      const input = document.getElementById('tvTextInput');
+      const text = input.value;
+      if (!text) return;
+      vibrate(20);
+      const ip = (document.getElementById('tvIpInput').value || getStore('samsung_tv_ip') || EMBEDDED_TV_IP || '').trim();
+
+      if (mode === 'direct') {
+        connectDirectWebSocket(ip, (ws) => {
+          ws.send(JSON.stringify({
+            method: 'ms.remote.control',
+            params: {
+              Cmd: btoa(unescape(encodeURIComponent(text))),
+              DataOfCmd: 'base64',
+              TypeOfRemote: 'SendInputString'
+            }
+          }));
+          input.value = '';
+          showToast('已发送文字');
+        });
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const data = await res.json();
+        showToast(data.message || (data.ok ? '已发送' : '发送失败'));
+        if (data.ok) input.value = '';
+      } catch (e) {
+        setMode('direct');
+        sendText();
+      }
+    }
+
+    async function discoverTVs() {
+      const listEl = document.getElementById('tvList');
+      listEl.innerHTML = '<div style="color:var(--muted);">正在扫描局域网内的三星电视...</div>';
+      try {
+        const res = await fetch('/api/discover');
+        const data = await res.json();
+        if (!data.tvs || data.tvs.length === 0) {
+          listEl.innerHTML = '<div style="color:var(--muted);">未自动扫到电视，请直接输入电视 IP</div>';
+          return;
+        }
+        listEl.innerHTML = '';
+        data.tvs.forEach(tv => {
+          const item = document.createElement('div');
+          item.className = 'tv-item';
+          item.innerHTML = `<span>📺 <b>${tv.name}</b> (${tv.model})</span><span style="color:var(--accent)">${tv.ip}</span>`;
+          item.onclick = () => {
+            document.getElementById('tvIpInput').value = tv.ip;
+            setStore('samsung_tv_ip', tv.ip);
+            updateCertLink();
+            connectTV(tv.ip);
+          };
+          listEl.appendChild(item);
+        });
+      } catch (e) {
+        listEl.innerHTML = '<div style="color:var(--muted);">电脑后端未运行，请直接输入电视 IP 使用手机直连</div>';
+      }
+    }
+
+    function exportStandaloneHTML() {
+      const ip = (document.getElementById('tvIpInput').value || getStore('samsung_tv_ip') || '').trim();
+      const token = getStore(`samsung_token_${ip}`) || '';
+      let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+      html = html.replace('const EMBEDDED_TV_IP = "";', `const EMBEDDED_TV_IP = "${ip}";`);
+      html = html.replace('const EMBEDDED_TV_TOKEN = "";', `const EMBEDDED_TV_TOKEN = "${token}";`);
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '三星遥控器-离线直连版.html';
+      a.click();
+      showToast('已生成内嵌配对信息的离线单文件！');
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+      const map = {
+        ArrowUp: 'KEY_UP',
+        ArrowDown: 'KEY_DOWN',
+        ArrowLeft: 'KEY_LEFT',
+        ArrowRight: 'KEY_RIGHT',
+        Enter: 'KEY_ENTER',
+        Backspace: 'KEY_RETURN',
+        Escape: 'KEY_HOME',
+        '+': 'KEY_VOLUP',
+        '=': 'KEY_VOLUP',
+        '-': 'KEY_VOLDOWN',
+        'm': 'KEY_MUTE'
+      };
+      if (map[e.key]) {
+        e.preventDefault();
+        sendKey(map[e.key]);
+      }
+    });
+
+    // Init
+    const savedIp = getStore('samsung_tv_ip') || EMBEDDED_TV_IP || '';
+    if (savedIp) {
+      document.getElementById('tvIpInput').value = savedIp;
+    }
+    setMode(mode);
+    if (savedIp) {
+      connectTV(savedIp);
+    } else {
+      document.getElementById('connDrawer').classList.add('open');
+    }
+  </script>
+</body>
+</html>
