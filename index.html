@@ -573,8 +573,8 @@
   <div id="toast" class="toast"></div>
 
   <script>
-    // Embedded defaults (auto-populated when exporting standalone offline file)
-    const EMBEDDED_TV_IP = "";
+    // Embedded defaults (pre-configured with your Samsung TV IP)
+    const EMBEDDED_TV_IP = "192.168.88.22";
     const EMBEDDED_TV_TOKEN = "";
 
     const memStore = {};
@@ -620,7 +620,7 @@
     }
 
     function updateCertLink() {
-      const ip = (document.getElementById('tvIpInput').value || '').trim() || '192.168.88.x';
+      const ip = (document.getElementById('tvIpInput').value || '').trim() || '192.168.88.22';
       const link = document.getElementById('certLink');
       link.href = `https://${ip}:8002/api/v2/`;
       link.textContent = `https://${ip}:8002/api/v2/`;
